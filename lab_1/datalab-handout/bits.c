@@ -438,6 +438,10 @@ unsigned floatScale2(unsigned uf) {
 //     return sign | (exp << 23) | frac;
 // }
 
+
+
+
+
 /* 
  * floatFloat2Int - Return bit-level equivalent of expression (int) f
  *   for floating point argument f.
@@ -451,7 +455,35 @@ unsigned floatScale2(unsigned uf) {
  *   Rating: 4
  */
 int floatFloat2Int(unsigned uf) {
-  return 2;
+  unsigned sign = uf & (1 << 31);
+  unsigned exp = (uf >> 23) & 0xFF;
+  unsigned frac = uf & 0x7FFFFF;
+  
+  // (int) f => means truncate toward 0
+  // normalized float: f = (-1)^sign x 1.fraction x 2^(exp - 127)
+  // Get the 1.fraction, shift it according to the exponent, and handle the cases where the result can't fit in an int.
+
+  if (exp == 0xFF)  // NaN and infinity can't fit in int
+    return 0x80000000u;
+
+  int E = exp - 127;
+  if (E < 0) // 0.xx => 0
+    return 0;
+
+  if (E > 30)  // tmax = 2^31 -1, tmin = -2^31
+    return 0x80000000u;
+  
+  unsigned mantissa = (frac | 1 << 23);
+  int shift = E - 23; // how much to shift: mantissa x 2^(E - 23)
+  if (shift >= 0) { // << ; multiply by power of 2
+    mantissa <<= shift;
+  } else {  //  >> - ; divide by power of 2
+    mantissa >>= -shift;
+  }
+
+  if (sign)
+    return -mantissa;
+  return mantissa;
 }
 /* 
  * floatPower2 - Return bit-level equivalent of the expression 2.0^x
