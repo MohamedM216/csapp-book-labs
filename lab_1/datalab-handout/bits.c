@@ -179,8 +179,7 @@ int tmin(void) {
  *   Rating: 1
  */
 int isTmax(int x) {
-  int tmax = (1<<31)-1;
-  return (!(x ^ tmax)); // equal to if x == tmax return 1 else return 0
+  return (!(x ^ 0x7FFFFFFF)); // equal to if x == tmax return 1 else return 0
 }
 /* 
  * allOddBits - return 1 if all odd-numbered bits in word set to 1
@@ -279,8 +278,13 @@ int conditional(int x, int y, int z) {
  *   Rating: 3
  */
 int isLessOrEqual(int x, int y) {
-  int sign = (y + (~x+1))>>31;
-  return !sign;
+  int signX = (x >> 31) & 1;
+  int signY = (y >> 31) & 1;
+  int diff = (y + (~x + 1)) >> 31;
+
+  // If signs differ, x<=y iff x is negative
+  // If signs same, subtraction won't overflow, check sign of y-x
+  return (signX & !signY) | (!(signX ^ signY) & !diff);
 }
 //4
 /* 
@@ -499,5 +503,31 @@ int floatFloat2Int(unsigned uf) {
  *   Rating: 4
  */
 unsigned floatPower2(int x) {
-    return 2;
+  // 2.0^x = 1.0 x 2^x
+  // so we're constructing a float representing exactly 1.0 x 2^x
+  // float repr rule: f = -1^sign x 1.frac x 2^E
+  // we want the float f = 2^x, so sign = 0; -1^sign = 1
+  // and frac = 0 so 1.frac = 1.0
+  // the only remaining part is 2^E, so we only need to figure out the exponent field
+  // x is the E term
+  // E = exp - BIAS (in signle precision, BIAS = 127) (E = exp -127)
+  // x = exp - 127
+  // exp = x + 127 (normal)
+
+  // we have 4 cases:
+  // 1) normal: -126 <= x <= 127
+  // 2) too small x < -149 (the smallest positive denormal is 2^-149)
+  // 3) denormal for -149 <= x < -126
+  // 3) too large x > 127
+
+  if (x < -149) // too small
+    return 0;
+
+  if (x < -126) // denormal
+    return 1u << (x + 149);
+
+  if (x > 127)  // too large +INF
+    return 0x7F800000;
+
+  return (x + 127) << 23; // normal
 }
